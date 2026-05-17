@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { EnhancedDraw } from '../types/lottery';
-import { TOTAL_RED_COMBOS } from '../utils/combinationRank';
 
 interface Props {
   data: EnhancedDraw[];
@@ -10,27 +9,28 @@ interface Props {
 }
 
 export default function RankHistogramChart({ data, selectedIssue, onSelect }: Props) {
-  const [bins, setBins] = useState(100);
+  const [bins, setBins] = useState(50);
 
   const option = useMemo(() => {
-    const binSize = Math.ceil(TOTAL_RED_COMBOS / bins);
-    const counts = new Array(bins).fill(0);
+    const sums = data.map(d => d.sum);
+    const min = Math.min(...sums);
+    const max = Math.max(...sums);
+    const binSize = Math.ceil((max - min) / bins) || 1;
     const binData: { start: number; end: number; count: number }[] = [];
-
-    for (const d of data) {
-      const idx = Math.min(Math.floor((d.rank - 1) / binSize), bins - 1);
-      counts[idx]++;
-    }
 
     for (let i = 0; i < bins; i++) {
       binData.push({
-        start: i * binSize + 1,
-        end: Math.min((i + 1) * binSize, TOTAL_RED_COMBOS),
-        count: counts[i],
+        start: min + i * binSize,
+        end: min + (i + 1) * binSize - 1,
+        count: 0,
       });
     }
+    for (const s of sums) {
+      const idx = Math.min(Math.floor((s - min) / binSize), bins - 1);
+      binData[idx].count++;
+    }
 
-    const xData = binData.map(b => `${(b.start / 1_000_000).toFixed(1)}M`);
+    const xData = binData.map(b => `${b.start}`);
     const yData = binData.map(b => b.count);
 
     return {
@@ -45,7 +45,7 @@ export default function RankHistogramChart({ data, selectedIssue, onSelect }: Pr
           if (!p) return '';
           const b = binData[p.dataIndex];
           return `
-            <div style="font-weight:bold">区间 ${b.start.toLocaleString()} – ${b.end.toLocaleString()}</div>
+            <div style="font-weight:bold">和值区间 ${b.start} – ${b.end}</div>
             <div>落入数量：<span style="color:#3B82F6;font-weight:bold">${b.count}</span></div>
             <div>占比：${((b.count / data.length) * 100).toFixed(2)}%</div>
           `;
@@ -81,7 +81,7 @@ export default function RankHistogramChart({ data, selectedIssue, onSelect }: Pr
   return (
     <div>
       <div className="flex items-center gap-1 mb-2">
-        {[50, 100, 200].map(b => (
+        {[30, 50, 100].map(b => (
           <button
             key={b}
             onClick={() => setBins(b)}

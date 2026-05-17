@@ -1,23 +1,27 @@
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EnhancedDraw } from '../types/lottery';
+import type { EnhancedDraw, LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 
 interface Props {
   data: EnhancedDraw[];
+  lotteryType: LotteryType;
 }
 
-export default function RedHeatmapChart({ data }: Props) {
+export default function MainHeatmapChart({ data, lotteryType }: Props) {
+  const config = LOTTERY_CONFIGS[lotteryType];
+
   const option = useMemo(() => {
     const years = [...new Set(data.map(d => d.date.substring(0, 4)))].sort();
     const heatData: [number, number, number][] = [];
 
     for (const year of years) {
       const yearData = data.filter(d => d.date.startsWith(year));
-      const freq: number[] = new Array(33).fill(0);
+      const freq: number[] = new Array(config.mainRange).fill(0);
       for (const d of yearData) {
-        for (const r of d.reds) freq[r - 1]++;
+        for (const r of d.mainBalls) freq[r - 1]++;
       }
-      for (let num = 0; num < 33; num++) {
+      for (let num = 0; num < config.mainRange; num++) {
         heatData.push([num, years.indexOf(year), freq[num]]);
       }
     }
@@ -43,10 +47,10 @@ export default function RedHeatmapChart({ data }: Props) {
       grid: { left: 60, right: 30, top: 10, bottom: 40 },
       xAxis: {
         type: 'category',
-        data: Array.from({ length: 33 }, (_, i) => String(i + 1).padStart(2, '0')),
-        name: '红球号码',
+        data: Array.from({ length: config.mainRange }, (_, i) => String(i + 1).padStart(2, '0')),
+        name: `${config.mainLabel}号码`,
         nameTextStyle: { color: '#9CA3AF', fontSize: 11 },
-        axisLabel: { color: '#9CA3AF', fontSize: 9 },
+        axisLabel: { color: '#9CA3AF', fontSize: config.mainRange > 40 ? 8 : 9, rotate: config.mainRange > 40 ? 45 : 0 },
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
         splitArea: { show: true, areaStyle: { color: ['rgba(255,255,255,0.02)', 'rgba(255,255,255,0.04)'] } },
       },
@@ -77,7 +81,7 @@ export default function RedHeatmapChart({ data }: Props) {
         },
       }],
     };
-  }, [data]);
+  }, [data, config]);
 
-  return <ReactECharts option={option} style={{ height: 340 }} />;
+  return <ReactECharts option={option} style={{ height: config.mainRange > 40 ? 460 : 340 }} />;
 }

@@ -1,4 +1,6 @@
 import { Sun, Moon, HelpCircle } from 'lucide-react';
+import type { LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -9,6 +11,8 @@ interface NavbarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   onHelp: () => void;
+  lotteryType: LotteryType;
+  onLotteryTypeChange: (type: LotteryType) => void;
 }
 
 const tabs = [
@@ -17,6 +21,8 @@ const tabs = [
   { key: 'stats', label: '号码统计' },
   { key: 'table', label: '数据表' },
 ];
+
+const lotteryTypes: LotteryType[] = ['ssq', 'dlt', 'k8'];
 
 export default function Navbar({
   darkMode,
@@ -27,18 +33,39 @@ export default function Navbar({
   currentTab,
   onTabChange,
   onHelp,
+  lotteryType,
+  onLotteryTypeChange,
 }: NavbarProps) {
+  const config = LOTTERY_CONFIGS[lotteryType];
+
   return (
     <header className="bg-bg-card border-b border-white/5 sticky top-0 z-50">
       <div className="px-6 py-3 flex items-center gap-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">DC</span>
+          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${config.colorClass} flex items-center justify-center`}>
+            <span className="text-white font-bold text-xs">{config.shortName}</span>
           </div>
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">DoubleColorScope</h1>
-            <p className="text-[10px] text-gray-400 leading-tight">双色球组合空间可视化</p>
+            <p className="text-[10px] text-gray-400 leading-tight">{config.name}组合空间可视化</p>
           </div>
+        </div>
+
+        {/* Lottery type switcher */}
+        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5">
+          {lotteryTypes.map(type => (
+            <button
+              key={type}
+              onClick={() => onLotteryTypeChange(type)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                lotteryType === type
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {LOTTERY_CONFIGS[type].name}
+            </button>
+          ))}
         </div>
 
         <nav className="flex items-center gap-1">

@@ -1,15 +1,16 @@
-import type { LotteryDraw } from '../types/lottery';
-import { enhanceDraws } from './statistics';
+import type { EnhancedDraw } from '../types/lottery';
+import { getCombinationRank } from './combinationRank';
+import { getMainSum, getRepeatCount } from './statistics';
 import { applyPcaToDraws } from './pca';
 
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function generateReds(): number[] {
+function generateMainBalls(count: number, range: number): number[] {
   const nums: number[] = [];
-  while (nums.length < 6) {
-    const n = randInt(1, 33);
+  while (nums.length < count) {
+    const n = randInt(1, range);
     if (!nums.includes(n)) nums.push(n);
   }
   return nums.sort((a, b) => a - b);
@@ -25,31 +26,56 @@ function formatDate(year: number, idx: number): string {
   return d.toISOString().split('T')[0];
 }
 
-export function generateMockData(totalDraws = 3000): LotteryDraw[] {
+export function generateEnhancedMockData(totalDraws = 3000): EnhancedDraw[] {
   const drawsPerYear = Math.ceil(totalDraws / 20);
-  const draws: LotteryDraw[] = [];
+  const enhanced: EnhancedDraw[] = [];
   let idx = 0;
 
-  for (let year = 2005; year < 2025 && draws.length < totalDraws; year++) {
-    const count = Math.min(drawsPerYear, totalDraws - draws.length);
+  for (let year = 2005; year < 2025 && enhanced.length < totalDraws; year++) {
+    const count = Math.min(drawsPerYear, totalDraws - enhanced.length);
     for (let i = 0; i < count; i++) {
-      draws.push({
+      const mainBalls = generateMainBalls(6, 33);
+      const specialBalls = [randInt(1, 16)];
+      const sorted = [...mainBalls].sort((a, b) => a - b);
+      const rank = getCombinationRank(sorted, 'ssq');
+      const sum = getMainSum(sorted);
+      const odd = sorted.filter(x => x % 2 === 1).length;
+      const small = sorted.filter(x => x <= 16).length;
+      const zones = [
+        sorted.filter(x => x >= 1 && x <= 11).length,
+        sorted.filter(x => x >= 12 && x <= 22).length,
+        sorted.filter(x => x >= 23 && x <= 33).length,
+      ];
+      const vector = new Array(33).fill(0);
+      for (const r of sorted) vector[r - 1] = 1;
+
+      const prevMain = idx > 0 ? enhanced[idx - 1].mainBalls : sorted;
+      const repeatWithPrev = idx === 0 ? 0 : getRepeatCount(sorted, prevMain);
+
+      enhanced.push({
         issue: formatIssue(year, i),
         date: formatDate(year, i),
-        reds: generateReds(),
-        blue: randInt(1, 16),
+        mainBalls: sorted,
+        specialBalls,
+        mainCount: 6,
+        specialCount: 1,
+        rank,
+        percentile: rank / 1_107_568,
+        sum,
+        oddCount: odd,
+        evenCount: 6 - odd,
+        bigCount: 6 - small,
+        smallCount: small,
+        zoneCounts: zones,
+        repeatWithPrev,
+        distanceWithPrev: idx === 0 ? 0 : 6 - repeatWithPrev,
+        vector,
       });
       idx++;
     }
   }
 
-  return draws;
-}
-
-export function generateEnhancedMockData(totalDraws = 3000) {
-  const raw = generateMockData(totalDraws);
-  const enhanced = enhanceDraws(raw);
-  const vectors = enhanced.map(d => d.vector33);
+  const vectors = enhanced.map(d => d.vector);
   const pcaResults = applyPcaToDraws(vectors);
   for (let i = 0; i < enhanced.length; i++) {
     enhanced[i].pcaX = pcaResults[i].x;

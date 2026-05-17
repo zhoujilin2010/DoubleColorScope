@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useMemo, useEffect, type ReactNode } from 'react';
-import type { EnhancedDraw } from '../types/lottery';
+import { createContext, useContext, useState, useMemo, useEffect, useCallback, type ReactNode } from 'react';
+import type { EnhancedDraw, LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 import { computeAppData } from '../utils/statistics';
 
 interface AppContextType {
@@ -15,10 +16,15 @@ interface AppContextType {
   years: string[];
   currentTab: string;
   setCurrentTab: (tab: string) => void;
+  lotteryType: LotteryType;
+  setLotteryType: (type: LotteryType) => void;
   loading: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+// Cache loaded data per lottery type
+const dataCache: Partial<Record<LotteryType, EnhancedDraw[]>> = {};
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [allData, setAllData] = useState<EnhancedDraw[]>([]);
@@ -27,35 +33,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedYear, setSelectedYear] = useState('all');
   const [darkMode, setDarkMode] = useState(true);
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [lotteryType, setLotteryType] = useState<LotteryType>('ssq');
 
-  // Load pre-computed enhanced data from JSON
-  useEffect(() => {
-    fetch('/data/ssq-enhanced.json')
-      .then(res => res.json())
-      .then((data: EnhancedDraw[]) => {
-        setAllData(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        // Fallback: try raw data and compute on the fly
-        fetch('/data/ssq-history.json')
-          .then(res => res.json())
-          .then(async (rawData) => {
-            const { enhanceDraws } = await import('../utils/statistics');
-            const { applyPcaToDraws } = await import('../utils/pca');
-            const enhanced = enhanceDraws(rawData);
-            const vectors = enhanced.map((d: EnhancedDraw) => d.vector33);
-            const pcaResults = applyPcaToDraws(vectors);
-            for (let i = 0; i < enhanced.length; i++) {
-              enhanced[i].pcaX = pcaResults[i].x;
-              enhanced[i].pcaY = pcaResults[i].y;
-            }
-            setAllData(enhanced);
-            setLoading(false);
-          })
-          .catch(() => setLoading(false));
-      });
+  const loadData = useCallback(async (type: LotteryType) => {
+    if (dataCache[type]) {
+      setAllData(dataCache[type]!);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const config = LOTTERY_CONFIGS[type];
+    try {
+      const res = await fetch(config.dataFile);
+      const data: EnhancedDraw[] = await res.json();
+      dataCache[type] = data;
+      setAllData(data);
+    } catch (e) {
+      console.error(`Failed to load ${type} data:`, e);
+      setAllData([]);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadData(lotteryType);
+  }, [lotteryType, loadData]);
+
+  // Reset filters when lottery type changes
+  useEffect(() => {
+    setSelectedIssue(null);
+    setSelectedYear('all');
+  }, [lotteryType]);
 
   const years = useMemo(() => {
     return [...new Set(allData.map(d => d.date.substring(0, 4)))].sort();
@@ -70,8 +78,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (filteredData.length === 0) {
       return { totalDraws: 0, uniqueCombos: 0, coverage: 0, avgRepeat: 0, avgDistance: 0, totalSpace: 0, fullSpace: 0 };
     }
-    return computeAppData(filteredData);
-  }, [filteredData]);
+    return computeAppData(filteredData, lotteryType);
+  }, [filteredData, lotteryType]);
 
   const toggleTheme = () => {
     setDarkMode(prev => {
@@ -89,6 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         selectedYear, setSelectedYear,
         darkMode, toggleTheme,
         years, currentTab, setCurrentTab,
+        lotteryType, setLotteryType,
         loading,
       }}
     >

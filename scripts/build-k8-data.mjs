@@ -1,54 +1,44 @@
 import fs from 'fs';
 
-// ============ Combination Rank ============
-const CACHE = [];
-function comb(n, k) {
-  if (k < 0 || k > n) return 0;
-  if (k === 0 || k === n) return 1;
-  if (!CACHE[n]) CACHE[n] = [];
-  if (CACHE[n][k] !== undefined) return CACHE[n][k];
-  CACHE[n][k] = comb(n - 1, k - 1) + comb(n - 1, k);
-  return CACHE[n][k];
-}
+// ============ K8 Config ============
+const BALL_COUNT = 20;
+const BALL_RANGE = 80;
+// C(80,20) ≈ 3.5e18 — too large for JS number, skip rank for K8
 
-function getCombinationRank(reds) {
-  const sorted = [...reds].sort((a, b) => a - b);
-  let rank = 0;
-  for (let i = 0; i < 6; i++) {
-    const prev = i === 0 ? 0 : sorted[i - 1];
-    for (let j = prev + 1; j < sorted[i]; j++) {
-      rank += comb(33 - j, 6 - i - 1);
-    }
-  }
-  return rank + 1;
-}
-
-const TOTAL_RED_COMBOS = 1_107_568;
-
-// ============ Statistics ============
+// ============ Helpers ============
 function getRepeatCount(a, b) {
   const setB = new Set(b);
   return a.filter(x => setB.has(x)).length;
 }
-function getRedSum(reds) { return reds.reduce((s, x) => s + x, 0); }
-function getOddEvenCount(reds) {
-  const odd = reds.filter(x => x % 2 === 1).length;
-  return { odd, even: 6 - odd };
+
+function getSum(nums) { return nums.reduce((s, x) => s + x, 0); }
+
+function getOddEvenCount(nums, total) {
+  const odd = nums.filter(x => x % 2 === 1).length;
+  return { odd, even: total - odd };
 }
-function getBigSmallCount(reds) {
-  const small = reds.filter(x => x <= 16).length;
-  return { big: 6 - small, small };
+
+function getBigSmallCount(nums, total, midpoint) {
+  const small = nums.filter(x => x <= midpoint).length;
+  return { big: total - small, small };
 }
-function getZoneCounts(reds) {
-  return [
-    reds.filter(x => x >= 1 && x <= 11).length,
-    reds.filter(x => x >= 12 && x <= 22).length,
-    reds.filter(x => x >= 23 && x <= 33).length,
-  ];
+
+function getZoneCounts(nums, zones) {
+  const counts = new Array(zones.length).fill(0);
+  for (const x of nums) {
+    for (let z = 0; z < zones.length; z++) {
+      if (x >= zones[z][0] && x <= zones[z][1]) {
+        counts[z]++;
+        break;
+      }
+    }
+  }
+  return counts;
 }
-function toVector33(reds) {
-  const vec = new Array(33).fill(0);
-  for (const r of reds) vec[r - 1] = 1;
+
+function toVector(nums, length) {
+  const vec = new Array(length).fill(0);
+  for (const r of nums) vec[r - 1] = 1;
   return vec;
 }
 
@@ -73,7 +63,7 @@ function centerMatrix(m) {
 
 function powerIteration(A, iterations = 50) {
   const n = A.length;
-  let v = Array.from({ length: n }, (_, i) => i === 0 ? 1 : 0);
+  let v = Array.from({ length: n }, (_, i) => (i === 0 ? 1 : 0));
   for (let iter = 0; iter < iterations; iter++) {
     const Av = A.map(row => dot(row, v));
     const nrm = norm(Av);
@@ -109,23 +99,45 @@ function pca(data, components = 2) {
 }
 
 // ============ Main ============
-console.log('Loading raw data...');
-const raw = JSON.parse(fs.readFileSync('D:/dev/DoubleColorScope/public/data/ssq-history.json', 'utf-8'));
+// K8: 8 zones of 10 numbers each
+const ZONES = [];
+for (let z = 0; z < 8; z++) {
+  ZONES.push([z * 10 + 1, (z + 1) * 10]);
+}
+const MIDPOINT = 40; // 1-40 small, 41-80 big
+
+console.log('Loading K8 CSV...');
+const csvPath = 'D:/QQball/k8_932期_20260426_164748.csv';
+const csv = fs.readFileSync(csvPath, 'utf-8');
+const lines = csv.trim().split('\n');
+
+const draws = [];
+for (let i = 1; i < lines.length; i++) {
+  const cols = lines[i].split(',');
+  const balls = [];
+  for (let j = 2; j <= 21; j++) {
+    balls.push(parseInt(cols[j]));
+  }
+  draws.push({
+    issue: cols[0],
+    date: cols[1],
+    balls,
+  });
+}
 
 // Sort by issue ascending for sequential processing
-raw.sort((a, b) => a.issue.localeCompare(b.issue));
+draws.sort((a, b) => a.issue.localeCompare(b.issue));
 
-console.log(`Enhancing ${raw.length} draws...`);
+console.log(`Enhancing ${draws.length} draws...`);
 const enhanced = [];
-for (let i = 0; i < raw.length; i++) {
-  const d = raw[i];
-  const sorted = [...d.reds].sort((a, b) => a - b);
-  const rank = getCombinationRank(sorted);
-  const sum = getRedSum(sorted);
-  const { odd, even } = getOddEvenCount(sorted);
-  const { big, small } = getBigSmallCount(sorted);
-  const zoneCounts = getZoneCounts(sorted);
-  const vector33 = toVector33(sorted);
+for (let i = 0; i < draws.length; i++) {
+  const d = draws[i];
+  const sorted = [...d.balls].sort((a, b) => a - b);
+  const sum = getSum(sorted);
+  const { odd, even } = getOddEvenCount(sorted, BALL_COUNT);
+  const { big, small } = getBigSmallCount(sorted, BALL_COUNT, MIDPOINT);
+  const zoneCounts = getZoneCounts(sorted, ZONES);
+  const vector80 = toVector(sorted, BALL_RANGE);
   const prevMain = i > 0 ? enhanced[i - 1].mainBalls : sorted;
   const repeatWithPrev = i === 0 ? 0 : getRepeatCount(sorted, prevMain);
 
@@ -133,11 +145,11 @@ for (let i = 0; i < raw.length; i++) {
     issue: d.issue,
     date: d.date,
     mainBalls: sorted,
-    specialBalls: [d.blue],
-    mainCount: 6,
-    specialCount: 1,
-    rank,
-    percentile: rank / TOTAL_RED_COMBOS,
+    specialBalls: [],
+    mainCount: BALL_COUNT,
+    specialCount: 0,
+    rank: 0, // K8 combination space too large, rank N/A
+    percentile: 0,
     sum,
     oddCount: odd,
     evenCount: even,
@@ -145,12 +157,12 @@ for (let i = 0; i < raw.length; i++) {
     smallCount: small,
     zoneCounts,
     repeatWithPrev,
-    distanceWithPrev: i === 0 ? 0 : 6 - repeatWithPrev,
-    vector: vector33,
+    distanceWithPrev: i === 0 ? 0 : BALL_COUNT - repeatWithPrev,
+    vector: vector80,
   });
 }
 
-console.log('Computing PCA...');
+console.log('Computing PCA (80-dim, this may take a minute)...');
 const vectors = enhanced.map(d => d.vector);
 const pcaResults = pca(vectors, 2);
 for (let i = 0; i < enhanced.length; i++) {
@@ -161,21 +173,17 @@ for (let i = 0; i < enhanced.length; i++) {
 // Sort by issue descending for display
 enhanced.sort((a, b) => b.issue.localeCompare(a.issue));
 
-// Compute aggregate metrics
-const ranks = new Set(enhanced.map(d => d.rank));
-const repeats = enhanced.slice(0, -1).map(d => d.repeatWithPrev).filter(r => r > 0 || true);
+const repeats = enhanced.slice(0, -1).map(d => d.repeatWithPrev);
 
-console.log('Writing enhanced data...');
+console.log('Writing K8 enhanced data...');
 fs.writeFileSync(
-  'D:/dev/DoubleColorScope/public/data/ssq-enhanced.json',
+  'D:/dev/DoubleColorScope/public/data/k8-enhanced.json',
   JSON.stringify(enhanced),
   'utf-8'
 );
 
 const avgRepeat = repeats.length > 0 ? repeats.reduce((s, r) => s + r, 0) / repeats.length : 0;
 console.log(`Done! ${enhanced.length} draws written.`);
-console.log(`  Unique combos: ${ranks.size} / ${TOTAL_RED_COMBOS} (${(ranks.size / TOTAL_RED_COMBOS * 100).toFixed(4)}%)`);
 console.log(`  Avg repeat: ${avgRepeat.toFixed(2)}`);
-console.log(`  Avg distance: ${(6 - avgRepeat).toFixed(2)}`);
-console.log(`  PCA sample: draw[0] = (${enhanced[0].pcaX.toFixed(2)}, ${enhanced[0].pcaY.toFixed(2)})`);
-console.log(`  File size: ${(fs.statSync('D:/dev/DoubleColorScope/public/data/ssq-enhanced.json').size / 1024).toFixed(0)} KB`);
+console.log(`  Avg distance: ${(BALL_COUNT - avgRepeat).toFixed(2)}`);
+console.log(`  File size: ${(fs.statSync('D:/dev/DoubleColorScope/public/data/k8-enhanced.json').size / 1024).toFixed(0)} KB`);

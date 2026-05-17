@@ -7,16 +7,19 @@ import Dashboard from './pages/Dashboard';
 import CombinationAnalysis from './pages/CombinationAnalysis';
 import NumberStats from './pages/NumberStats';
 import DataTablePage from './pages/DataTable';
+import type { LotteryType } from './types/lottery';
+import { LOTTERY_CONFIGS } from './types/lottery';
 
-function LoadingScreen() {
+function LoadingScreen({ lotteryType }: { lotteryType: LotteryType }) {
+  const config = LOTTERY_CONFIGS[lotteryType];
   return (
     <div className="min-h-screen bg-bg-primary flex items-center justify-center">
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-500 to-blue-600 flex items-center justify-center animate-pulse">
-          <span className="text-white font-bold text-2xl">DC</span>
+        <div className={`w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br ${config.colorClass} flex items-center justify-center animate-pulse`}>
+          <span className="text-white font-bold text-xs">{config.shortName}</span>
         </div>
         <h2 className="text-xl font-bold text-white mb-2">DoubleColorScope</h2>
-        <p className="text-gray-400 text-sm mb-6">双色球组合空间可视化分析平台</p>
+        <p className="text-gray-400 text-sm mb-6">{config.name}组合空间可视化分析平台</p>
         <div className="flex gap-1 justify-center">
           {[0, 1, 2].map(i => (
             <div
@@ -38,12 +41,13 @@ function AppContent() {
     selectedYear, setSelectedYear,
     years, currentTab, setCurrentTab,
     filteredData, selectedIssue, setSelectedIssue,
+    lotteryType, setLotteryType,
     loading,
   } = useApp();
 
   const [helpOpen, setHelpOpen] = useState(false);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen lotteryType={lotteryType} />;
 
   const selectedDraw = selectedIssue
     ? filteredData.find(d => d.issue === selectedIssue) || null
@@ -61,6 +65,8 @@ function AppContent() {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onHelp={() => setHelpOpen(true)}
+          lotteryType={lotteryType}
+          onLotteryTypeChange={setLotteryType}
         />
 
         <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
@@ -75,7 +81,7 @@ function AppContent() {
 
           <aside className="w-80 shrink-0 p-6 pl-0 hidden xl:block">
             <div className="sticky top-20">
-              <DetailPanel draw={selectedDraw} />
+              <DetailPanel draw={selectedDraw} lotteryType={lotteryType} />
             </div>
           </aside>
         </div>
@@ -92,7 +98,7 @@ function AppContent() {
               >
                 ✕
               </button>
-              <DetailPanel draw={selectedDraw} />
+              <DetailPanel draw={selectedDraw} lotteryType={lotteryType} />
             </div>
           </div>
         )}

@@ -1,27 +1,36 @@
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EnhancedDraw } from '../types/lottery';
+import type { EnhancedDraw, LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 
 interface Props {
   data: EnhancedDraw[];
+  lotteryType: LotteryType;
 }
 
-export default function RepeatCountChart({ data }: Props) {
+const COLOR_MAP = [
+  'rgba(156,163,175,0.6)',
+  '#3B82F6', '#3B82F6', '#3B82F6',
+  '#F97316', '#F97316', '#F97316',
+  '#EF4444', '#EF4444', '#EF4444',
+  '#EF4444', '#EF4444', '#EF4444',
+  '#EF4444', '#EF4444', '#EF4444',
+  '#EF4444', '#EF4444', '#EF4444',
+  '#EF4444', '#EF4444',
+];
+
+export default function RepeatCountChart({ data, lotteryType }: Props) {
+  const config = LOTTERY_CONFIGS[lotteryType];
+
   const option = useMemo(() => {
-    const counts = new Array(7).fill(0);
+    const maxRepeats = config.mainCount;
+    const counts = new Array(maxRepeats + 1).fill(0);
     for (let i = 1; i < data.length; i++) {
-      counts[data[i].repeatWithPrev]++;
+      const r = Math.min(data[i].repeatWithPrev, maxRepeats);
+      counts[r]++;
     }
 
-    const colorMap = [
-      'rgba(156,163,175,0.6)',
-      '#3B82F6',
-      '#3B82F6',
-      '#F97316',
-      '#EF4444',
-      '#EF4444',
-      '#EF4444',
-    ];
+    const xLabels = Array.from({ length: maxRepeats + 1 }, (_, i) => String(i));
 
     return {
       backgroundColor: 'transparent',
@@ -40,10 +49,10 @@ export default function RepeatCountChart({ data }: Props) {
       grid: { left: 50, right: 20, top: 10, bottom: 30 },
       xAxis: {
         type: 'category',
-        data: ['0', '1', '2', '3', '4', '5', '6'],
+        data: xLabels,
         name: '重号数量',
         nameTextStyle: { color: '#9CA3AF', fontSize: 11 },
-        axisLabel: { color: '#9CA3AF', fontSize: 11 },
+        axisLabel: { color: '#9CA3AF', fontSize: config.mainCount > 10 ? 9 : 11 },
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
       },
       yAxis: {
@@ -56,17 +65,17 @@ export default function RepeatCountChart({ data }: Props) {
         type: 'bar',
         data: counts.map((c, i) => ({
           value: c,
-          itemStyle: { color: colorMap[i], borderRadius: [4, 4, 0, 0] },
+          itemStyle: { color: COLOR_MAP[i] || '#EF4444', borderRadius: [4, 4, 0, 0] },
         })),
         label: {
-          show: true,
+          show: config.mainCount <= 10,
           position: 'top',
           color: '#9CA3AF',
           fontSize: 10,
         },
       }],
     };
-  }, [data]);
+  }, [data, config]);
 
   return <ReactECharts option={option} style={{ height: 260 }} />;
 }

@@ -1,3 +1,6 @@
+import type { LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
+
 const CACHE: number[][] = [];
 
 function comb(n: number, k: number): number {
@@ -9,25 +12,20 @@ function comb(n: number, k: number): number {
   return CACHE[n][k];
 }
 
-export function getCombinationRank(reds: number[]): number {
-  const sorted = [...reds].sort((a, b) => a - b);
+export function getCombinationRank(balls: number[], type: LotteryType): number {
+  const config = LOTTERY_CONFIGS[type];
+  if (config.totalMainCombos === 0) return 0; // K8 - too large
+  const sorted = [...balls].sort((a, b) => a - b);
   let rank = 0;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < config.mainCount; i++) {
     const prev = i === 0 ? 0 : sorted[i - 1];
     for (let j = prev + 1; j < sorted[i]; j++) {
-      rank += comb(33 - j, 6 - i - 1);
+      rank += comb(config.mainRange - j, config.mainCount - i - 1);
     }
   }
   return rank + 1;
 }
 
-export function getRankFromVector(vec: number[]): number {
-  const reds: number[] = [];
-  for (let i = 0; i < 33; i++) {
-    if (vec[i] === 1) reds.push(i + 1);
-  }
-  return getCombinationRank(reds);
+export function getTotalCombos(type: LotteryType): number {
+  return LOTTERY_CONFIGS[type].totalMainCombos;
 }
-
-export const TOTAL_RED_COMBOS = 1_107_568;
-export const TOTAL_FULL_COMBOS = 17_721_088;

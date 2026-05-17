@@ -1,24 +1,30 @@
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EnhancedDraw } from '../types/lottery';
+import type { EnhancedDraw, LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 
 interface Props {
   data: EnhancedDraw[];
   selectedIssue: string | null;
   onSelect: (issue: string) => void;
+  lotteryType: LotteryType;
 }
 
-export default function PcaScatterChart({ data, selectedIssue, onSelect }: Props) {
+export default function PcaScatterChart({ data, selectedIssue, onSelect, lotteryType }: Props) {
+  const config = LOTTERY_CONFIGS[lotteryType];
+
   const option = useMemo(() => {
     const valid = data.filter(d => d.pcaX !== undefined && d.pcaY !== undefined);
     const pData = valid.map(d => {
-      const hue = ((d.blue - 1) / 15) * 240;
+      const colorSource = d.specialBalls.length > 0 ? d.specialBalls[0] : d.mainBalls[0];
+      const colorRange = d.specialBalls.length > 0 ? config.specialRange : config.mainRange;
+      const hue = ((colorSource - 1) / (colorRange - 1 || 1)) * 240;
       return {
         value: [d.pcaX!, d.pcaY!],
         issue: d.issue,
         date: d.date,
-        reds: d.reds,
-        blue: d.blue,
+        mainBalls: d.mainBalls,
+        specialBalls: d.specialBalls,
         rank: d.rank,
         itemStyle: {
           color: `hsl(${hue}, 65%, 55%)`,
@@ -30,6 +36,8 @@ export default function PcaScatterChart({ data, selectedIssue, onSelect }: Props
         symbolSize: selectedIssue === d.issue ? 14 : 6,
       };
     });
+
+    const hasRank = config.totalMainCombos > 0;
 
     return {
       backgroundColor: 'transparent',
@@ -43,10 +51,10 @@ export default function PcaScatterChart({ data, selectedIssue, onSelect }: Props
           if (!d) return '';
           return `
             <div style="font-weight:bold;margin-bottom:4px">${d.issue} | ${d.date}</div>
-            <div>红球：${d.reds.join(' ')}</div>
-            <div>蓝球：<span style="color:#2563EB">${String(d.blue).padStart(2, '0')}</span></div>
+            <div>${config.mainLabel}：${d.mainBalls.join(' ')}</div>
+            ${d.specialBalls.length > 0 ? `<div>${config.specialLabel}：<span style="color:#2563EB">${d.specialBalls.map((n: number) => String(n).padStart(2, '0')).join(' ')}</span></div>` : ''}
             <div>PCA：(${d.pcaX!.toFixed(2)}, ${d.pcaY!.toFixed(2)})</div>
-            <div>组合编号：${d.rank.toLocaleString()}</div>
+            ${hasRank ? `<div>组合编号：${d.rank.toLocaleString()}</div>` : ''}
           `;
         },
       },
@@ -78,7 +86,7 @@ export default function PcaScatterChart({ data, selectedIssue, onSelect }: Props
         },
       }],
     };
-  }, [data, selectedIssue]);
+  }, [data, selectedIssue, config]);
 
   const onEvents = useMemo(() => ({
     click: (params: any) => {

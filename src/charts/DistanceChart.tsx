@@ -1,19 +1,24 @@
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EnhancedDraw } from '../types/lottery';
+import type { EnhancedDraw, LotteryType } from '../types/lottery';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 
 interface Props {
   data: EnhancedDraw[];
   selectedIssue: string | null;
   onSelect: (issue: string) => void;
+  lotteryType: LotteryType;
 }
 
-export default function DistanceChart({ data, selectedIssue, onSelect }: Props) {
+export default function DistanceChart({ data, selectedIssue, onSelect, lotteryType }: Props) {
+  const config = LOTTERY_CONFIGS[lotteryType];
+
   const option = useMemo(() => {
     const filtered = data.slice(1);
     const xData = filtered.map(d => d.issue);
     const distData = filtered.map(d => d.distanceWithPrev);
     const repeatData = filtered.map(d => d.repeatWithPrev);
+    const maxDist = config.mainCount;
 
     return {
       backgroundColor: 'transparent',
@@ -40,7 +45,7 @@ export default function DistanceChart({ data, selectedIssue, onSelect }: Props) 
           type: 'value',
           name: '距离',
           min: 0,
-          max: 6,
+          max: maxDist,
           axisLabel: { color: '#9CA3AF', fontSize: 10 },
           splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
         },
@@ -57,8 +62,9 @@ export default function DistanceChart({ data, selectedIssue, onSelect }: Props) 
           itemStyle: {
             color: (p: any) => {
               const v = distData[p.dataIndex];
-              if (v <= 2) return '#34D399';
-              if (v <= 4) return '#FBBF24';
+              const ratio = v / maxDist;
+              if (ratio <= 0.33) return '#34D399';
+              if (ratio <= 0.67) return '#FBBF24';
               return '#EF4444';
             },
             borderRadius: [2, 2, 0, 0],
@@ -74,7 +80,7 @@ export default function DistanceChart({ data, selectedIssue, onSelect }: Props) 
         },
       ],
     };
-  }, [data]);
+  }, [data, config]);
 
   const onEvents = useMemo(() => ({
     click: (params: any) => {

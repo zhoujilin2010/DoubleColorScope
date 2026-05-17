@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { LOTTERY_CONFIGS } from '../types/lottery';
 import BallBadge from '../components/BallBadge';
 import { Download } from 'lucide-react';
 
 export default function DataTablePage() {
-  const { filteredData, setSelectedIssue } = useApp();
+  const { filteredData, setSelectedIssue, lotteryType } = useApp();
+  const config = LOTTERY_CONFIGS[lotteryType];
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string>('issue');
   const [sortAsc, setSortAsc] = useState(false);
@@ -23,16 +25,33 @@ export default function DataTablePage() {
     return list;
   }, [filteredData, search, sortKey, sortAsc]);
 
+  const columns = useMemo(() => {
+    const cols = ['期号', '日期', config.mainLabel, '和值', '奇偶', '大小', '分区'];
+    if (config.specialCount > 0) cols.splice(3, 0, config.specialLabel);
+    if (config.totalMainCombos > 0) cols.splice(config.specialCount > 0 ? 4 : 3, 0, '组合编号');
+    return cols;
+  }, [config]);
+
   const exportCSV = () => {
-    const header = '期号,日期,红1,红2,红3,红4,红5,红6,蓝球,组合编号,和值,奇偶比,大小比,三区';
-    const rows = sorted.map(d =>
-      [d.issue, d.date, ...d.reds, d.blue, d.rank, d.sum, `${d.oddCount}:${d.evenCount}`, `${d.bigCount}:${d.smallCount}`, d.zoneCounts.join('-')].join(',')
-    );
+    const parts = ['期号', '日期'];
+    for (let i = 0; i < config.mainCount; i++) parts.push(`${config.mainLabel}${i + 1}`);
+    if (config.specialCount > 0) {
+      for (let i = 0; i < config.specialCount; i++) parts.push(`${config.specialLabel}${i + 1}`);
+    }
+    parts.push('和值', '奇偶比', '大小比', '分区');
+    const header = parts.join(',');
+
+    const rows = sorted.map(d => {
+      const row = [d.issue, d.date, ...d.mainBalls];
+      if (config.specialCount > 0) row.push(...d.specialBalls);
+      row.push(d.sum, `${d.oddCount}:${d.evenCount}`, `${d.bigCount}:${d.smallCount}`, d.zoneCounts.join('-'));
+      return row.join(',');
+    });
     const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'double-color-scope-data.csv';
+    a.download = `${config.key}-data.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -62,7 +81,7 @@ export default function DataTablePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5">
-                {['期号', '日期', '红球', '蓝球', '组合编号', '和值', '奇偶', '大小', '三区'].map(col => (
+                {columns.map(col => (
                   <th
                     key={col}
                     onClick={() => {
@@ -86,14 +105,24 @@ export default function DataTablePage() {
                   <td className="px-4 py-3 text-gray-200 font-mono">{d.issue}</td>
                   <td className="px-4 py-3 text-gray-400">{d.date}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      {d.reds.map((n, i) => (
-                        <BallBadge key={i} number={n} type="red" size="sm" />
+                    <div className="flex gap-1 flex-wrap">
+                      {d.mainBalls.map((n, i) => (
+                        <BallBadge key={i} number={n} type="main" lotteryType={lotteryType} size="sm" />
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3"><BallBadge number={d.blue} type="blue" size="sm" /></td>
-                  <td className="px-4 py-3 text-gray-300 font-mono">{d.rank.toLocaleString()}</td>
+                  {config.specialCount > 0 && (
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        {d.specialBalls.map((n, i) => (
+                          <BallBadge key={i} number={n} type="special" lotteryType={lotteryType} size="sm" />
+                        ))}
+                      </div>
+                    </td>
+                  )}
+                  {config.totalMainCombos > 0 && (
+                    <td className="px-4 py-3 text-gray-300 font-mono">{d.rank.toLocaleString()}</td>
+                  )}
                   <td className="px-4 py-3 text-gray-300">{d.sum}</td>
                   <td className="px-4 py-3 text-gray-400">{d.oddCount}:{d.evenCount}</td>
                   <td className="px-4 py-3 text-gray-400">{d.bigCount}:{d.smallCount}</td>
